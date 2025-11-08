@@ -79,7 +79,11 @@ sim_results_df |>
   ) |> 
   ggplot(aes(x = sample_size, y = prob)) +
   geom_point() +
-  geom_smooth()
+  geom_smooth() +
+  labs(
+    x = "Group Size",
+    y = "Probability"
+  ) 
 ```
 
 The plot shows that as the group size increases, the probability that at last 2 people in the group will share a birthday will also increase. The increase starts to plateau slightly as it gets to group size of 50. 
