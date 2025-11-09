@@ -32,7 +32,7 @@ scale_fill_discrete = scale_fill_viridis_d
 
 ```
 
-set seed
+Set seed
 
 ```{r}
 set.seed(1)
@@ -86,7 +86,7 @@ sim_results_df |>
   ) 
 ```
 
-The plot shows that as the group size increases, the probability that at last 2 people in the group will share a birthday will also increase. The increase starts to plateau slightly as it gets to group size of 50. 
+The plot shows that as the group size increases, the probability that at least 2 people in the group will share a birthday will also increase. The increase starts to plateau slightly as it gets to group size of 50. 
 
 ## Problem 2
 
@@ -135,69 +135,133 @@ sim_results_2_df |>
   geom_point() +
   geom_smooth(se = FALSE) +
   labs(
-    x = "Effect",
+    x = "Effect Size",
     y = "Power"
   ) 
 ```
 
-?????????????DESCRIPTION OF PLOT HERE???????????
+The plot shows that as effect size increases, power increases. However, the increase does plateau at effect size of 4, where the power maintains consistent at a value of 1. 
 
-Plot #2
+Dataframe with average estimate of sample mean for all samples
 
 ```{r}
-sim_results_2_df |> 
+all_results_df = 
+  sim_results_2_df |> 
   group_by(mean) |> 
   summarize(
-    avg_estimate_mean = mean(estimate)
-  ) |> 
-  ggplot(aes(x = mean, y = avg_estimate_mean)) +
-  geom_point() +
-  geom_smooth(se = FALSE) +
-  labs(
-    title = "True mean vs average estimate of mean",
-    x = "True mean",
-    y = "Average estimate of mean"
-  ) 
+    avg_estimate_mean = mean(estimate),
+    type = "All"
+    ) 
 ```
 
+Dataframe with average estimate of sample mean for only samples for which null was rejected
+
 ```{r}
-sim_results_2_df |> 
+rejected_null_df = 
+  sim_results_2_df |> 
   filter(p.value <= 0.05) |> 
   group_by(mean) |> 
   summarize(
-    avg_estimate_mean = mean(estimate)
-  ) |> 
-  ggplot(aes(x = mean, y = avg_estimate_mean)) +
+    avg_estimate_mean = mean(estimate),
+    type = "Rejected Null"
+  ) 
+```
+
+Create plot with results for all samples and for only samples where null was rejected
+
+```{r}
+bind_rows(all_results_df, rejected_null_df) |> 
+  ggplot(aes(x = mean, y = avg_estimate_mean, color = type)) +
   geom_point() +
   geom_smooth(se = FALSE) +
   labs(
-    title = "True mean vs average estimate of mean \nonly for when null was rejected",
+    title = "True mean vs Average Estimate of Mean",
     x = "True mean",
     y = "Average estimate of mean"
   ) 
 ```
 
-?????????????DESCRIPTION OF PLOT HERE???????????
+In general, the sample average of sample mean across tests for which the null is rejected is approximately equal to the true mean. However, the tests with a true mean of between 1 and 3 has a higher sample average of sample mean for those with rejected null. This is the case because for tests when null is rejected, sample mean is farther away from the true mean. In this case, the average estimate of mean is larger than the true mean. Since we are only keeping results where the null is rejected, only values with more extreme values are included in the final output. 
 
+## Problem 3
 
-Alternative (may delete later)
+Import data
+
 ```{r}
-sim_results_2_df |> 
-  mutate(
-    reject_null = p.value <= 0.05
-  ) |> 
-  group_by(mean, reject_null) |> 
-  summarize(
-    avg_estimate_mean = mean(estimate)
-  ) |> 
-  ggplot(aes(x = mean, y = avg_estimate_mean, color = reject_null)) +
-  geom_point()
+homicide_df = 
+  read_csv("data/homicide-data.csv") |>
+  janitor::clean_names() 
 ```
 
-## Question 3
+The raw data of `homicide_df` contains `r nrow(homicide_df)` observations representing each criminal homicide in 50 of the largest American cities. Demographic information of victims, including `victim_last`, `victim_first`, `victim_race`, `victim_age`, and `victim_sex`, are included. `city`, `state`, `lat`, and `long` represent the location of homicide. `disposition` represents how the homicide case was concluded. 
 
+Create city_state variable
 
+```{r}
+homicide_df = 
+  homicide_df |> 
+  mutate(
+    city_state = str_c(city, ", ", state)
+  )
+```
 
+Summarize to obtain total homicides and unresolved homicdites per city
 
+```{r}
+homicide_summary = 
+  homicide_df |> 
+  group_by(city_state) |> 
+  summarize(
+    total_hom = n(),
+    unsolved_hom = sum(disposition %in% c("Closed without arrest", "Open/No arrest"))
+    )
+```
 
+Baltimore, MD
+
+```{r}
+baltimore_hom = 
+  homicide_summary |> 
+  filter(city_state == "Baltimore, MD") |> 
+  with(prop.test(unsolved_hom, total_hom))
+
+baltimore_hom |> 
+  broom::tidy() |> 
+  select(estimate, conf.low, conf.high) |> 
+  knitr::kable(digits = 3)
+```
+
+All cities
+
+```{r}
+homicide_prop_conf = 
+  homicide_summary |> 
+  mutate(
+    test_result = map2(unsolved_hom, total_hom, ~ prop.test(.x, .y)),
+    result = map(test_result, broom::tidy)
+  ) |> 
+  unnest(result) |> 
+  select(city_state, estimate, conf.low, conf.high) 
+
+homicide_prop_conf |> 
+  knitr::kable(digits = 3)
+```
+
+Create a plot
+
+```{r}
+homicide_prop_conf |> 
+  mutate(
+    city_state = fct_reorder(city_state, estimate)
+  ) |> 
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Proportion of Unsolved Homicides by Location",
+    x = "Location",
+    y = "Proportion of Unsolved Homicides"
+  ) 
+```
 
